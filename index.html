@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>নাটোর অর্গানিক শপ - এডমিন</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        :root { 
+            --primary: #25d366; --pending: #ffc107; --done: #28a745; 
+            --cancel: #dc3545; --blue: #007bff; --bg: #f0f2f5; --card-bg: #ffffff;
+            --delete: #ff4757; --reset: #6c757d;
+        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
+        #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1a237e; z-index: 10001; display: flex; justify-content: center; align-items: center; }
+        .login-box { background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 350px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .login-input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 12px; border: 1px solid #ddd; outline: none; box-sizing: border-box; }
+        .login-btn { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .header { background: #3f51b5; color: white; padding: 15px; text-align: center; margin: -10px -10px 15px -10px; font-weight: bold; position: relative; }
+        .logout-btn { position: absolute; right: 10px; top: 15px; background: rgba(255,255,255,0.2); color: white; border: none; padding: 5px 10px; border-radius: 5px; font-size: 10px; }
+        .search-box { width: 100%; padding: 15px; border: 2px solid var(--blue); border-radius: 15px; box-sizing: border-box; margin-bottom: 20px; outline: none; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: var(--card-bg); padding: 8px; border-radius: 12px; text-align: center; border-bottom: 3px solid #ddd; cursor: pointer; }
+        .stat-card h4 { margin: 2px 0; font-size: 13px; color: #444; }
+        .stat-card h2 { margin: 2px 0; font-size: 20px; }
+        .order-card { background: var(--card-bg); border-radius: 15px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: relative; }
+        .dashboard-actions { display: flex; gap: 8px; margin-top: 15px; }
+        .btn-bikolpo { flex-grow: 1; background: var(--blue); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; }
+        .btn-icon-check { background: var(--done); color: white; border: none; width: 45px; height: 45px; border-radius: 10px; font-size: 20px; }
+        .btn-icon-cross { background: var(--cancel); color: white; border: none; width: 45px; height: 45px; border-radius: 10px; font-size: 20px; }
+        .view-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f0f2f5; z-index: 9000; overflow-y: auto; padding: 15px; box-sizing: border-box; }
+        .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index: 10000; justify-content:center; align-items:center; }
+        .modal-content { background:var(--card-bg); width:90%; max-width:400px; border-radius:20px; padding:20px; text-align:center; }
+        .edit-field { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #ddd; }
+        .modal-btn { width: 100%; padding: 12px; border: none; border-radius: 10px; font-weight: bold; margin-top: 10px; color: white; }
+    </style>
+</head>
+<body>
+
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2 style="color:#1a237e;">অ্যাডমিন লগইন</h2>
+            <input type="text" id="uInp" class="login-input" placeholder="ইউজারনেম">
+            <input type="password" id="pInp" class="login-input" placeholder="পাসওয়ার্ড">
+            <button onclick="handleLogin()" class="login-btn">লগইন</button>
+        </div>
+    </div>
+
+    <div id="mainApp" style="display:none;">
+        <div class="header">নাটোর অর্গানিক শপ (এডমিন) <button class="logout-btn" onclick="logout()">লগআউট</button></div>
+        
+        <div class="stats-grid">
+            <div class="stat-card" style="border-color: var(--blue)" onclick="openListView('All', 'মোট অর্ডার')"><h4>মোট</h4><h2 id="sAll">0</h2></div>
+            <div class="stat-card" style="border-color: var(--done)" onclick="openListView('Delivered', 'ডেলিভারি')"><h4>ডেলিভারি</h4><h2 id="sDel">0</h2></div>
+            <div class="stat-card" style="border-color: var(--pending)" onclick="openListView('Pending', 'পেন্ডিং')"><h4>পেন্ডিং</h4><h2 id="sPen">0</h2></div>
+            <div class="stat-card" style="border-color: var(--cancel)" onclick="openListView('Cancelled', 'ক্যানসেল')"><h4>ক্যানসেল</h4><h2 id="sCan">0</h2></div>
+        </div>
+
+        <div style="background: white; padding: 15px; border-radius: 15px; margin-bottom: 20px;">
+            <textarea id="rawInput" style="width:100%; height:80px; border:1px solid #eee; border-radius:10px; padding:10px;" placeholder="অর্ডার পেস্ট করুন..."></textarea>
+            <button onclick="process()" style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:12px; font-weight:bold; margin-top:10px;">অর্ডার জমা দিন</button>
+        </div>
+
+        <input type="text" class="search-box" id="searchInput" onkeyup="handleSearch()" placeholder="নাম বা ফোন দিয়ে খুঁজুন...">
+        <div id="searchResultList"></div>
+    </div>
+
+    <div id="listViewWindow" class="view-modal">
+        <button onclick="closeListView()" style="padding:10px; margin-bottom:10px;">⬅ পিছনে যান</button>
+        <h3 id="viewTitle">তালিকা</h3>
+        <div id="fullListContent"></div>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3>অর্ডার ম্যানেজমেন্ট</h3>
+            <input type="text" id="edName" class="edit-field">
+            <input type="text" id="edPhone" class="edit-field">
+            <button onclick="setStatus('Delivered')" class="modal-btn" style="background: var(--done);">✓ ডেলিভারি সম্পন্ন</button>
+            <button onclick="setStatus('Cancelled')" class="modal-btn" style="background: var(--cancel);">✕ অর্ডার ক্যানসেল</button>
+            <button onclick="deleteOrder()" class="modal-btn" style="background: var(--delete);">🗑 ডিলিট করুন</button>
+            <button onclick="closeM()" class="modal-btn" style="background: #ccc;">বন্ধ করুন</button>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBWkpDbwjV0R8g_sdcKC1gwml71yR4PCps",
+            authDomain: "natore-organic-shop.firebaseapp.com",
+            projectId: "natore-organic-shop",
+            databaseURL: "https://natore-organic-shop-default-rtdb.firebaseio.com/",
+            storageBucket: "natore-organic-shop.firebasestorage.app",
+            messagingSenderId: "227197796935",
+            appId: "1:227197796935:web:4aeb91a1ba1021a093a762"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let orders = [];
+        let currId = null;
+
+        // ডাটাবেজ থেকে লাইভ ডাটা আনা
+        db.ref('orders').on('value', (snapshot) => {
+            const data = snapshot.val();
+            orders = data ? Object.values(data) : [];
+            updateStats();
+            refreshLists();
+        });
+
+        function handleLogin() {
+            const u = document.getElementById('uInp').value;
+            const p = document.getElementById('pInp').value;
+            if(u === "shahin1122" && p === "Shahin@2211") {
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('mainApp').style.display = 'block';
+            } else { alert("ভুল তথ্য!"); }
+        }
+
+        function process() {
+            const input = document.getElementById('rawInput').value.trim();
+            if(!input) return;
+            const id = Date.now();
+            const now = new Date();
+            const newOrder = {
+                id: id,
+                date: now.toLocaleString('bn-BD'),
+                name: input.split('\n')[0] || 'অজানা',
+                phone: input.match(/01\d{9}/) ? input.match(/01\d{9}/)[0] : 'অজানা',
+                details: input,
+                status: 'Pending'
+            };
+            db.ref('orders/' + id).set(newOrder);
+            document.getElementById('rawInput').value = "";
+        }
+
+        function setStatus(s) {
+            if(currId) db.ref('orders/' + currId).update({ status: s });
+            closeM();
+        }
+
+        function deleteOrder() {
+            if(confirm("ডিলিট করবেন?")) {
+                db.ref('orders/' + currId).remove();
+                closeM();
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('sAll').innerText = orders.length;
+            document.getElementById('sDel').innerText = orders.filter(o => o.status === 'Delivered').length;
+            document.getElementById('sPen').innerText = orders.filter(o => o.status === 'Pending').length;
+            document.getElementById('sCan').innerText = orders.filter(o => o.status === 'Cancelled').length;
+        }
+
+        function createOrderCard(o) {
+            const div = document.createElement('div');
+            div.className = 'order-card';
+            div.innerHTML = `
+                <div style="font-size:12px; color:gray;">${o.date}</div>
+                <b>${o.name}</b> - ${o.phone}
+                <div style="margin-top:5px; color:${o.status==='Delivered'?'green':'orange'}">স্ট্যাটাস: ${o.status}</div>
+                <div class="dashboard-actions">
+                    <button class="btn-bikolpo" onclick="openM(${o.id})">ম্যানেজ করুন</button>
+                </div>
+            `;
+            return div;
+        }
+
+        function openListView(status, title) {
+            document.getElementById('viewTitle').innerText = title;
+            const container = document.getElementById('fullListContent');
+            container.innerHTML = "";
+            const filtered = status === 'All' ? orders : orders.filter(o => o.status === status);
+            filtered.forEach(o => container.appendChild(createOrderCard(o)));
+            document.getElementById('listViewWindow').style.display = 'block';
+        }
+
+        function openM(id) {
+            currId = id;
+            const o = orders.find(x => x.id == id);
+            document.getElementById('edName').value = o.name;
+            document.getElementById('edPhone').value = o.phone;
+            document.getElementById('editModal').style.display = 'flex';
+        }
+        function closeM() { document.getElementById('editModal').style.display = 'none'; }
+        function closeListView() { document.getElementById('listViewWindow').style.display = 'none'; }
+        function refreshLists() { /* লাইভ আপডেট হচ্ছে */ }
+        function logout() { location.reload(); }
+    </script>
+</body>
+  </html>
